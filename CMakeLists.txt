@@ -8,5 +8,6 @@ pkg_check_modules(VSOMEIP REQUIRED vsomeip)
 include_directories(include ${VSOMEIP_INCLUDE_DIRS})
 file(GLOB SOURCES "src/*.cpp")
 
-add_executable(speed_monitoring_system main.cpp ${SOURCES})
-target_link_libraries(speed_monitoring_system ${VSOMEIP_LIBRARIES})
+add_executable(speed_monitoring main.cpp ${SOURCES})
+target_link_libraries(speed_monitoring ${VSOMEIP_LIBRARIES})
+target_include_directories(speed_monitoring PRIVATE ${VSOMEIP_INCLUDE_DIRS})
