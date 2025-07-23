@@ -1,24 +1,34 @@
-#include "client2.hpp"
 #include <iostream>
+#include <vsomeip/vsomeip.hpp>
 
-Client2::Client2() {
-    app_ = vsomeip::runtime::get()->create_application("Client2");
-    app_->register_message_handler(0x1234, 0x0001, 0x0001,
-                                  std::bind(&Client2::on_speed_request, this, std::placeholders::_1));
+#define SERVICE_ID 0x1234
+#define INSTANCE_ID 0x5678
+#define SPEED_REQUEST_METHOD_ID 0x1000
+#define RESPONSE_METHOD_ID 0x1001
+#define CLIENT2_ID 0x2222
+
+std::shared_ptr<vsomeip::application> app;
+
+void on_speed_request(const std::shared_ptr<vsomeip::message> &_request) {
+    if (_request->get_method() == SPEED_REQUEST_METHOD_ID) {
+        std::cout << "Client2: Received SpeedRequest" << std::endl;
+
+        // Simulate RPM value
+        uint32_t rpm = 3000; // Example value
+        std::shared_ptr<vsomeip::message> response = vsomeip::runtime::get()->create_response(_request);
+        response->set_method(RESPONSE_METHOD_ID);
+        std::shared_ptr<vsomeip::payload> payload = vsomeip::runtime::get()->create_payload();
+        payload->set_data((uint8_t*)&rpm, sizeof(rpm));
+        response->set_payload(payload);
+        app->send(response);
+        std::cout << "Client2: Sent Response (RPM = " << rpm << ")" << std::endl;
+    }
 }
 
-void Client2::start() {
-    app_->init();
-    app_->start();
-}
-
-void Client2::on_speed_request(const std::shared_ptr<vsomeip::message>& request) {
-    float speed_tourmin = get_current_speed(); // Simulated
-    auto response = vsomeip::runtime::get()->create_response(request);
-    response->get_payload()->set_data(&speed_tourmin, sizeof(speed_tourmin));
-    app_->send(response, std::make_shared<vsomeip::endpoint>(client1_endpoint_, vsomeip::protocol_type::TCP));
-}
-
-float Client2::get_current_speed() {
-    return 120.0f; // Simulated speed in tour/min
+int main() {
+    app = vsomeip::runtime::get()->create_application("client2");
+    app->init();
+    app->register_message_handler(SERVICE_ID, INSTANCE_ID, SPEED_REQUEST_METHOD_ID, on_speed_request);
+    app->offer_service(SERVICE_ID, INSTANCE_ID, CLIENT2_ID);
+    app->start();
 }
