@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <vsomeip/vsomeip.hpp>
+#include <cstring> // Added for memcpy
 
 #define SERVICE_ID 0x1234
 #define INSTANCE_ID 0x5678
