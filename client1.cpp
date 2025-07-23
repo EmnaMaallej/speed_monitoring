@@ -2,6 +2,8 @@
 #include <iostream>
 #include <sstream>
 #include <vsomeip/vsomeip.hpp>
+#include <cstring> 
+#include <thread>  
 
 #define SERVICE_ID 0x1234
 #define INSTANCE_ID 0x5678
