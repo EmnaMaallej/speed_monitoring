@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(SomeIPApp)
+project(speed_monitoring)
 
 find_library(VSOMEIP_LIBRARY vsomeip3)
 find_library(VSOMEIP_SD_LIBRARY vsomeip3-sd)
