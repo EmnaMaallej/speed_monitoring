@@ -1,13 +1,14 @@
 cmake_minimum_required(VERSION 3.10)
-project(speed_monitoring)
+project(SomeIPApp)
 
-set(CMAKE_CXX_STANDARD 11)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(VSOMEIP REQUIRED vsomeip)
+find_library(VSOMEIP_LIBRARY vsomeip3)
+find_library(VSOMEIP_SD_LIBRARY vsomeip3-sd)
 
-include_directories(include ${VSOMEIP_INCLUDE_DIRS})
-file(GLOB SOURCES "src/*.cpp")
+add_executable(client1 client1.cpp)
+target_link_libraries(client1 ${VSOMEIP_LIBRARY} ${VSOMEIP_SD_LIBRARY} boost_system boost_thread)
 
-add_executable(speed_monitoring main.cpp ${SOURCES})
-target_link_libraries(speed_monitoring ${VSOMEIP_LIBRARIES})
-target_include_directories(speed_monitoring PRIVATE ${VSOMEIP_INCLUDE_DIRS})
+add_executable(client2 client2.cpp)
+target_link_libraries(client2 ${VSOMEIP_LIBRARY} ${VSOMEIP_SD_LIBRARY} boost_system boost_thread)
+
+add_executable(server server.cpp)
+target_link_libraries(server ${VSOMEIP_LIBRARY} ${VSOMEIP_SD_LIBRARY} boost_system boost_thread)
