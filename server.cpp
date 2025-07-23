@@ -1,7 +1,8 @@
 #include <iostream>
 #include <string>
 #include <vsomeip/vsomeip.hpp>
-#include <cstring> // Added for memcpy
+#include <cstring>
+#include <ctime>
 
 #define SERVICE_ID 0x1234
 #define INSTANCE_ID 0x5678
@@ -12,15 +13,24 @@
 
 std::shared_ptr<vsomeip::application> app;
 
+std::string getTimestamp() {
+    time_t now = time(0);
+    tm* ltm = localtime(&now);
+    std::ostringstream oss;
+    oss << "[" << (ltm->tm_hour < 10 ? "0" : "") << ltm->tm_hour << ":"
+        << (ltm->tm_min < 10 ? "0" : "") << ltm->tm_min << ":"
+        << (ltm->tm_sec < 10 ? "0" : "") << ltm->tm_sec << "] ";
+    return oss.str();
+}
+
 void on_speed_value(const std::shared_ptr<vsomeip::message> &_request) {
+    std::string ts = getTimestamp();
     if (_request->get_method() == SPEED_VALUE_METHOD_ID) {
-        // Handle SpeedValue from Client1
         std::shared_ptr<vsomeip::payload> payload = _request->get_payload();
         float kmh;
         memcpy(&kmh, payload->get_data(), sizeof(kmh));
-        std::cout << "Server: Received SpeedValue = " << kmh << " km/h" << std::endl;
+        std::cout << ts << "=== SERVER === Received SpeedValue = " << kmh << " km/h from Client1" << std::endl;
 
-        // Send Ack
         std::shared_ptr<vsomeip::message> ack = vsomeip::runtime::get()->create_response(_request);
         ack->set_method(ACK_METHOD_ID);
         std::shared_ptr<vsomeip::payload> ack_payload = vsomeip::runtime::get()->create_payload();
@@ -28,9 +38,8 @@ void on_speed_value(const std::shared_ptr<vsomeip::message> &_request) {
         ack_payload->set_data((uint8_t*)&ack_value, sizeof(ack_value));
         ack->set_payload(ack_payload);
         app->send(ack);
-        std::cout << "Server: Sent Ack" << std::endl;
+        std::cout << ts << "=== SERVER === Sent Ack to Client1" << std::endl;
 
-        // Analyze speed and send Notification
         std::string notification = (kmh < 100.0) ? "No Alert" : "Alert";
         std::shared_ptr<vsomeip::message> notif_msg = vsomeip::runtime::get()->create_notification();
         notif_msg->set_service(SERVICE_ID);
@@ -40,7 +49,7 @@ void on_speed_value(const std::shared_ptr<vsomeip::message> &_request) {
         notif_payload->set_data((uint8_t*)notification.c_str(), notification.length());
         notif_msg->set_payload(notif_payload);
         app->send(notif_msg);
-        std::cout << "Server: Sent Notification = " << notification << std::endl;
+        std::cout << ts << "=== SERVER === Sent Notification = " << notification << " to Client1" << std::endl;
     }
 }
 
