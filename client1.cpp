@@ -2,8 +2,9 @@
 #include <iostream>
 #include <sstream>
 #include <vsomeip/vsomeip.hpp>
-#include <cstring> 
-#include <thread>  
+#include <cstring>
+#include <thread>
+#include <ctime>
 
 #define SERVICE_ID 0x1234
 #define INSTANCE_ID 0x5678
@@ -16,19 +17,27 @@
 
 std::shared_ptr<vsomeip::application> app;
 
+std::string getTimestamp() {
+    time_t now = time(0);
+    tm* ltm = localtime(&now);
+    std::ostringstream oss;
+    oss << "[" << (ltm->tm_hour < 10 ? "0" : "") << ltm->tm_hour << ":"
+        << (ltm->tm_min < 10 ? "0" : "") << ltm->tm_min << ":"
+        << (ltm->tm_sec < 10 ? "0" : "") << ltm->tm_sec << "] ";
+    return oss.str();
+}
+
 void on_message(const std::shared_ptr<vsomeip::message> &_response) {
+    std::string ts = getTimestamp();
     if (_response->get_method() == RESPONSE_METHOD_ID) {
-        // Handle Response (tour/min) from Client2
         std::shared_ptr<vsomeip::payload> payload = _response->get_payload();
         uint32_t rpm;
         memcpy(&rpm, payload->get_data(), sizeof(rpm));
-        std::cout << "Client1: Received RPM = " << rpm << std::endl;
+        std::cout << ts << "=== CLIENT1 === Received RPM = " << rpm << std::endl;
 
-        // Convert tour/min to km/h (assuming wheel circumference = 2m)
         float kmh = (rpm * 2 * 3.14159 * 60) / 1000.0;
-        std::cout << "Client1: Converted to km/h = " << kmh << std::endl;
+        std::cout << ts << "=== CLIENT1 === Converted to km/h = " << kmh << std::endl;
 
-        // Send SpeedValue to Server
         std::shared_ptr<vsomeip::message> speed_msg = vsomeip::runtime::get()->create_request();
         speed_msg->set_service(SERVICE_ID);
         speed_msg->set_instance(INSTANCE_ID);
@@ -37,21 +46,21 @@ void on_message(const std::shared_ptr<vsomeip::message> &_response) {
         speed_payload->set_data((uint8_t*)&kmh, sizeof(kmh));
         speed_msg->set_payload(speed_payload);
         app->send(speed_msg);
+        std::cout << ts << "=== CLIENT1 === Sent SpeedValue (" << kmh << " km/h) to Server" << std::endl;
     } else if (_response->get_method() == ACK_METHOD_ID) {
-        // Handle Ack from Server
         std::shared_ptr<vsomeip::payload> payload = _response->get_payload();
         bool ack;
         memcpy(&ack, payload->get_data(), sizeof(ack));
-        std::cout << "Client1: Received Ack = " << (ack ? "true" : "false") << std::endl;
+        std::cout << ts << "=== CLIENT1 === Received Ack = " << (ack ? "true" : "false") << std::endl;
     } else if (_response->get_method() == NOTIFICATION_EVENT_ID) {
-        // Handle Notification from Server
         std::shared_ptr<vsomeip::payload> payload = _response->get_payload();
         std::string notification((char*)payload->get_data(), payload->get_length());
-        std::cout << "Client1: Received Notification = " << notification << std::endl;
+        std::cout << ts << "=== CLIENT1 === Received Notification = " << notification << std::endl;
     }
 }
 
 void send_speed_request() {
+    std::string ts = getTimestamp();
     std::shared_ptr<vsomeip::message> request = vsomeip::runtime::get()->create_request();
     request->set_service(SERVICE_ID);
     request->set_instance(INSTANCE_ID);
@@ -59,7 +68,7 @@ void send_speed_request() {
     std::shared_ptr<vsomeip::payload> payload = vsomeip::runtime::get()->create_payload();
     request->set_payload(payload);
     app->send(request);
-    std::cout << "Client1: Sent SpeedRequest" << std::endl;
+    std::cout << ts << "=== CLIENT1 === Sent SpeedRequest to Client2" << std::endl;
 }
 
 int main() {
@@ -68,10 +77,9 @@ int main() {
     app->register_message_handler(SERVICE_ID, INSTANCE_ID, RESPONSE_METHOD_ID, on_message);
     app->register_message_handler(SERVICE_ID, INSTANCE_ID, ACK_METHOD_ID, on_message);
     app->register_message_handler(SERVICE_ID, INSTANCE_ID, NOTIFICATION_EVENT_ID, on_message);
-    app->offer_service(SERVICE_ID, INSTANCE_ID, CLIENT1_ID);
+    app->request_service(SERVICE_ID, INSTANCE_ID);
     app->start();
 
-    // Periodically send SpeedRequest
     while (true) {
         send_speed_request();
         std::this_thread::sleep_for(std::chrono::seconds(5));
