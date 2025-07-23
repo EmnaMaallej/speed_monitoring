@@ -1,50 +1,77 @@
-#include "client1.hpp"
+#include <iomanip>
 #include <iostream>
+#include <sstream>
+#include <vsomeip/vsomeip.hpp>
 
-Client1::Client1() {
-    app_ = vsomeip::runtime::get()->create_application("Client1");
-    app_->register_message_handler(vsomeip::ANY_SERVICE, vsomeip::ANY_INSTANCE, vsomeip::ANY_METHOD,
-                                  std::bind(&Client1::on_response, this, std::placeholders::_1));
-    app_->register_message_handler(0x1234, 0x0002, vsomeip::ANY_METHOD,
-                                  std::bind(&Client1::on_server_response, this, std::placeholders::_1));
+#define SERVICE_ID 0x1234
+#define INSTANCE_ID 0x5678
+#define SPEED_REQUEST_METHOD_ID 0x1000
+#define RESPONSE_METHOD_ID 0x1001
+#define SPEED_VALUE_METHOD_ID 0x1002
+#define ACK_METHOD_ID 0x1003
+#define NOTIFICATION_EVENT_ID 0x8001
+#define CLIENT1_ID 0x1111
+
+std::shared_ptr<vsomeip::application> app;
+
+void on_message(const std::shared_ptr<vsomeip::message> &_response) {
+    if (_response->get_method() == RESPONSE_METHOD_ID) {
+        // Handle Response (tour/min) from Client2
+        std::shared_ptr<vsomeip::payload> payload = _response->get_payload();
+        uint32_t rpm;
+        memcpy(&rpm, payload->get_data(), sizeof(rpm));
+        std::cout << "Client1: Received RPM = " << rpm << std::endl;
+
+        // Convert tour/min to km/h (assuming wheel circumference = 2m)
+        float kmh = (rpm * 2 * 3.14159 * 60) / 1000.0;
+        std::cout << "Client1: Converted to km/h = " << kmh << std::endl;
+
+        // Send SpeedValue to Server
+        std::shared_ptr<vsomeip::message> speed_msg = vsomeip::runtime::get()->create_request();
+        speed_msg->set_service(SERVICE_ID);
+        speed_msg->set_instance(INSTANCE_ID);
+        speed_msg->set_method(SPEED_VALUE_METHOD_ID);
+        std::shared_ptr<vsomeip::payload> speed_payload = vsomeip::runtime::get()->create_payload();
+        speed_payload->set_data((uint8_t*)&kmh, sizeof(kmh));
+        speed_msg->set_payload(speed_payload);
+        app->send(speed_msg);
+    } else if (_response->get_method() == ACK_METHOD_ID) {
+        // Handle Ack from Server
+        std::shared_ptr<vsomeip::payload> payload = _response->get_payload();
+        bool ack;
+        memcpy(&ack, payload->get_data(), sizeof(ack));
+        std::cout << "Client1: Received Ack = " << (ack ? "true" : "false") << std::endl;
+    } else if (_response->get_method() == NOTIFICATION_EVENT_ID) {
+        // Handle Notification from Server
+        std::shared_ptr<vsomeip::payload> payload = _response->get_payload();
+        std::string notification((char*)payload->get_data(), payload->get_length());
+        std::cout << "Client1: Received Notification = " << notification << std::endl;
+    }
 }
 
-void Client1::start() {
-    app_->init();
-    app_->start();
+void send_speed_request() {
+    std::shared_ptr<vsomeip::message> request = vsomeip::runtime::get()->create_request();
+    request->set_service(SERVICE_ID);
+    request->set_instance(INSTANCE_ID);
+    request->set_method(SPEED_REQUEST_METHOD_ID);
+    std::shared_ptr<vsomeip::payload> payload = vsomeip::runtime::get()->create_payload();
+    request->set_payload(payload);
+    app->send(request);
+    std::cout << "Client1: Sent SpeedRequest" << std::endl;
 }
 
-void Client1::send_speed_request() {
-    auto request = vsomeip::runtime::get()->create_request();
-    request->set_service(0x1234);
-    request->set_instance(0x0001);
-    request->set_method(0x0001);
-    app_->send(request, std::make_shared<vsomeip::endpoint>(client2_endpoint_, vsomeip::protocol_type::TCP));
-}
+int main() {
+    app = vsomeip::runtime::get()->create_application("client1");
+    app->init();
+    app->register_message_handler(SERVICE_ID, INSTANCE_ID, RESPONSE_METHOD_ID, on_message);
+    app->register_message_handler(SERVICE_ID, INSTANCE_ID, ACK_METHOD_ID, on_message);
+    app->register_message_handler(SERVICE_ID, INSTANCE_ID, NOTIFICATION_EVENT_ID, on_message);
+    app->offer_service(SERVICE_ID, INSTANCE_ID, CLIENT1_ID);
+    app->start();
 
-void Client1::on_response(const std::shared_ptr<vsomeip::message>& msg) {
-    float speed_tourmin = *reinterpret_cast<float*>(msg->get_payload()->get_data());
-    float speed_kmh = convert_tourmin_to_kmh(speed_tourmin);
-    send_speed_to_server(speed_kmh);
-}
-
-float Client1::convert_tourmin_to_kmh(float tourmin) {
-    return tourmin * 0.1885; // Placeholder conversion factor
-}
-
-void Client1::send_speed_to_server(float speed_kmh) {
-    auto msg = vsomeip::runtime::get()->create_request();
-    msg->set_service(0x1234);
-    msg->set_instance(0x0002);
-    msg->set_method(0x0002);
-    msg->get_payload()->set_data(&speed_kmh, sizeof(speed_kmh));
-    app_->send(msg, std::make_shared<vsomeip::endpoint>(server_endpoint_, vsomeip::protocol_type::TCP));
-}
-
-void Client1::on_server_response(const std::shared_ptr<vsomeip::message>& msg) {
-    if (msg->get_method() == 0x0003) {
-        std::cout << "Received Ack" << std::endl;
-    } else if (msg->get_method() == 0x0004) {
-        std::cout << "Alert: Speed over 100 km/h" << std::endl;
+    // Periodically send SpeedRequest
+    while (true) {
+        send_speed_request();
+        std::this_thread::sleep_for(std::chrono::seconds(5));
     }
 }
