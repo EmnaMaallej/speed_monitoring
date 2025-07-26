@@ -1,0 +1,20 @@
+{
+  "unicast": "192.168.0.2",
+  "logging": {
+    "level": "debug",
+    "console": true
+  },
+  "applications": [
+    {
+      "name": "client1",
+      "id": 0x1235
+    }
+  ],
+  "clients": [
+    {
+      "service": 0x0002,
+      "instance": 0x0001
+    }
+  ],
+  "routing": "client1"
+}
