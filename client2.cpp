@@ -1,7 +1,5 @@
 #include <vsomeip/vsomeip.hpp>
 #include <iostream>
-#include <thread>
-#include <chrono>
 
 #define SERVICE_ID 0x0002
 #define INSTANCE_ID 0x0001
